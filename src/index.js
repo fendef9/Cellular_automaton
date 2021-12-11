@@ -1,67 +1,91 @@
 'use strict'
-const canva = document.getElementById(`screen`);
-const wrapper = document.getElementById(`screen-wrapper`);
-const initWidth = wrapper.clientWidth
-const initHeight = wrapper.clientHeight;
-const ctx = canva.getContext(`2d`);
-const CAGE_SIZE = 64;
-const BORDE_WIDTH = 1;
+class cells {
+    constructor(color = `white`) {
+        this.color = color;
+        this.isDead = color === `white` ? true : false;
+    }
 
-canva.addEventListener('contextmenu', (event) => event.preventDefault());
+    complementaryPairs = {
+        black: [`black`, `white`],
+        white: [`white`, `black`]
+    }
 
-// найти количество клеток по определенной оси
-const сellsNumber = (dimension, cellSize) => Math.floor(dimension / cellSize);
-// найти новую ширину канвы по определенной оси
-const newCanvaSize = (сellsNumber, cellSize) => сellsNumber * cellSize;
+    switchPair() {
+        this.color = this.complementaryPairs[color][!this.isDead];
+    }
 
-const findCellPosition = (xCord, yCord, cellSize) => {
-    const xIndex = сellsNumber(xCord, cellSize);
-    const yIndex = сellsNumber(yCord, cellSize);
+    makeDead() {
+        this.isDead = true;
+        this.switchPair();
+    }
 
-    return {xIndex, yIndex};
+    makeAlive() {
+        this.isDead = false;
+        this.switchPair();
+    }
 }
 
-const findCellCordinats = (xIndex, yIndex, cellSize) => {
-    const xCord = xIndex * cellSize;
-    const yCord = yIndex * cellSize;
+class Canvas {
+    constructor(width, height, cellSize) {
+        this.xCellsNumber = this.cellsNumber(width, cellSize);
+        this.yCellsNumber = this.cellsNumber(height, cellSize);
+        this.width = this.newCanvaSize(this.xCellsNumber, cellSize);
+        this.height = this.newCanvaSize(this.yCellsNumber, cellSize);
+        this.cellSize = cellSize;
+    }
 
-    return {xCord, yCord};
+    cellsNumber (dimension, cellSize) {
+        return Math.floor(dimension / cellSize);
+    }
+
+    newCanvaSize(cellsNumber, cellSize) {
+        return cellsNumber * cellSize;
+    }
 }
 
-class Matrix {
-    constructor(x, y, initialValue) {
-        this.x = x;
-        this.y = y;
-        this.matrix = this.#initMatrix(initialValue);
-    }
 
-    #initMatrix(initialValue) {
-        const row = [];
-
-        for (let i = 0; i < this.x; i++) {
-            const column = [];
-            
-            for (let j = 0; j < this.y; j ++) {
-                column[j] = initialValue;
-            }
-
-            row[i] = column;
-        }
-    
-        return row
+class Matrix extends Canvas {
+    constructor(width, height, initialValue, cellSize) {
+        super(width, height, cellSize);
+        this.length = this.yCellsNumber * this.xCellsNumber;
+        this.matrix = this.#init(initialValue);
     }
     
-    iterate(callback = function(value, index, jndex) {}) {
-        for (let i = 0; i < this.matrix.length; i++) {
-            for (let j = 0; j < this.matrix[0].length; j ++) {
-                callback(this.matrix[i][j], i, j)
-            }
-        }
+    #init(initialValue) {
+        const arr = [];
+        arr.length = this.length;
+        arr.fill(initialValue);
 
-        return this.matrix;
+        return arr;
     }
 
-    #mooreNeighborhood(xIndex, yIndex) {
+    twoDintoOneD(xIndex, yIndex) {
+        return yIndex * this.xCellsNumber + xIndex;
+    }
+
+    oneDintoTwoD(index) {
+        return {
+            xIndex:  this.xCellsNumber - index, // проблема тут
+            yIndex: this.cellsNumber(this.xCellsNumber, index),
+        }
+    }
+
+    findCellPosition(xCord, yCord) {
+        const xIndex = this.cellsNumber(xCord, this.cellSize);
+        const yIndex = this.cellsNumber(yCord, this.cellSize);
+    
+        return this.twoDintoOneD(xIndex, yIndex);
+    }
+
+    findCellCordinats(index) {
+        const {xIndex, yIndex} = this.oneDintoTwoD(index);
+        const xCord = xIndex * this.cellSize;
+        const yCord = yIndex * this.cellSize;
+    
+        return {xCord, yCord};
+    }
+
+    mooreNeighborhood(xIndex = 0 , yIndex = 0) {
         // 012
         // 3C5
         // 678
@@ -70,8 +94,8 @@ class Matrix {
             xIndex - 1, yIndex - 1,   // 0
             xIndex, yIndex - 1,       // 1
             xIndex + 1, yIndex - 1,   // 2
-            xIndex - 1, yIndex,       // 3
-            xIndex, yIndex,           // 4
+            xIndex - 1, yIndex,       // 3         
+                                      // 4
             xIndex + 1, yIndex,       // 5
             xIndex - 1, yIndex + 1,   // 6
             xIndex, yIndex + 1,       // 7
@@ -79,89 +103,109 @@ class Matrix {
         ]
     }
 
-    #findNeighbors(method) {
-        const neighborsCount = this.#initMatrix(0);
+    #findNeighbors(val, i, method) {
         let neighbors = 0;
-        
-        this.iterate( (val, i, j) => {
-            let count = method(i, j);
+        const {xIndex, yIndex} = this.oneDintoTwoD(i);
+        const count = method(xIndex, yIndex);
             
-            for (let i = 0; i < count.length - 1; i += 2) {
-                if(this.matrix[val[i]][val[i + 1]] === val) {
-                    neighbors ++;
-                }
+        for (let i = 0; i < count.length - 1; i += 2) {
+            const brother = this.twoDintoOneD(count[i], count[i + 1]);
+                
+            if (brother < 0) {
+                continue
+            } else if (this.matrix[brother] === `black`) {
+                neighbors ++;
             }
-    
-            neighborsCount[i][j] = neighbors;
+        }
+
+        return neighbors;
+    }
+
+    step(live = [], born, method) {
+        this.matrix.forEach( (val, i) => {
+            const neighborsCount = this.#findNeighbors(val, i, method);
+
+            if (
+                val === `black` &&
+                (neighborsCount > live[1] ||
+                neighborsCount < live[0])
+            ) {
+                this.matrix[i] = `white`;
+            }
+            if (val === `white` && neighborsCount === born) {
+                this.matrix[i] = `black`;
+            }
+            
+            return
         })
-
-        return neighborsCount;
     }
-
-    step(live, born) {
-        
-    }
-
 }
 
-const xLength = сellsNumber(initWidth, CAGE_SIZE);
-const yLength = сellsNumber(initHeight, CAGE_SIZE);
-const height = ctx.canvas.height = newCanvaSize(yLength, CAGE_SIZE);
-const width = ctx.canvas.width = newCanvaSize(xLength, CAGE_SIZE);
+const canvas = document.getElementById(`screen`);
+const wrapper = document.getElementById(`screen-wrapper`);
+const initWidth = wrapper.clientWidth
+const initHeight = wrapper.clientHeight;
+const ctx = canvas.getContext(`2d`);
+const CAGE_SIZE = 64;
+const BORDE_WIDTH = 1;
+const matrix = new Matrix(initWidth, initHeight, `white`, CAGE_SIZE);
+console.log(matrix.findCellCordinats(20))
 
+canvas.addEventListener('contextmenu', (event) => event.preventDefault());
+
+ctx.canvas.height = matrix.height;
+ctx.canvas.width = matrix.width;
 ctx.imageSmoothingEnabled = false;
 ctx.lineWidth = BORDE_WIDTH;
 ctx.strokeStyle = `grey`;
 ctx.fillStyle = `white`;
 
-const drawlogic = (ctx, cellSize) => {
-    return (value, i, j) => {
-        const {xCord: x, yCord: y} = findCellCordinats(i, j, cellSize);
-        
-        ctx.fillStyle = value;
-        ctx.strokeRect(x, y, cellSize, cellSize);
-        ctx.fillRect(
-            x + BORDE_WIDTH, 
-            y + BORDE_WIDTH, 
-            cellSize - BORDE_WIDTH * 2, 
-            cellSize - BORDE_WIDTH * 2
-        );
-    }
-}
+// const drawlogic = (ctx) => {
+//     return (value, i) => {
+//         const {xCord: x, yCord: y} = matrix.findCellCordinats(i);
+//         ctx.fillStyle = value;
+//         ctx.strokeRect(x, y, matrix.cellSize, matrix.cellSize);
+//         ctx.fillRect(
+//             x + BORDE_WIDTH, 
+//             y + BORDE_WIDTH, 
+//             matrix.cellSize - BORDE_WIDTH * 2, 
+//             matrix.cellSize - BORDE_WIDTH * 2
+//         );
+//     }
+// }
 
-let initCellsArray = new Matrix(xLength, yLength, `white`)
-    .iterate(drawlogic(ctx, CAGE_SIZE));
+// // matrix.matrix.forEach(drawlogic(ctx));
 
-const draw = (event) => {
-    let drawColor;
-    const {xIndex: x, yIndex: y} = findCellPosition(event.offsetX, event.offsetY, CAGE_SIZE);
-    const color = initCellsArray[x][y];
+// const draw = (event) => {
+//     let drawColor;
+//     const index = matrix.findCellPosition(event.offsetX, event.offsetY, width, CAGE_SIZE);
+//     const color = initCellsArray[index];
     
-    switch(event.which) {
-        case 1:
-            drawColor = `black`;
-            break;
-        case 3:
-            drawColor = `white`;
-            break;
-        default:
-           return  
-    }   
-    if(color !== drawColor) {
-        drawlogic(ctx, CAGE_SIZE)(drawColor, x, y);
-        initCellsArray[x][y] = drawColor;
-    }
-}
+//     switch(event.which) {
+//         case 1:
+//             drawColor = `black`;
+//             break;
+//         case 3:
+//             drawColor = `white`;
+//             break;
+//         default:
+//            return  
+//     }   
+//     // if(color !== drawColor) {
+//     //     drawlogic(ctx, CAGE_SIZE)(drawColor, x, y);
+//     //     initCellsArray[x][y] = drawColor;
+//     // }
+// }
 
-const startDraw = (event) => {
-    draw(event);
-    canva.addEventListener(`mousemove`, draw);
-    // prompt(event.which);       
-}
+// const startDraw = (event) => {
+//     draw(event);
+//     canvas.addEventListener(`mousemove`, draw);
+//     // prompt(event.which);       
+// }
 
-const stopDraw = (event) => {
-    canva.removeEventListener(`mousemove`, draw); 
-}
+// const stopDraw = (event) => {
+//     canvas.removeEventListener(`mousemove`, draw); 
+// }
 
-canva.addEventListener('mousedown', startDraw);
-canva.addEventListener('mouseup', stopDraw);
+// canvas.addEventListener('mousedown', startDraw);
+// canvas.addEventListener('mouseup', stopDraw);
