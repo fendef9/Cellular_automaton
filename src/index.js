@@ -43,7 +43,6 @@ class Canvas {
     }
 }
 
-
 class Matrix extends Canvas {
     constructor(width, height, initialValue, cellSize) {
         super(width, height, cellSize);
@@ -56,7 +55,7 @@ class Matrix extends Canvas {
         for (let i = 0; i < this.xCellsNumber; i++) {
             const column = [];
 
-            for (let j = 0; j < this.yCellsNumber; j ++) {
+            for (let j = 0; j < this.yCellsNumber; j++) {
                 column[j] = initialValue;
             }
 
@@ -68,23 +67,12 @@ class Matrix extends Canvas {
 
     iterate(callback = function(value, index, jndex) {}) {
         for (let i = 0; i < this.xCellsNumber; i++) {
-            for (let j = 0; j < this.yCellsNumber; j ++) {
+            for (let j = 0; j < this.yCellsNumber; j++) {
                 callback(this.matrix[i][j], i, j)
             }
         }
 
         return this.matrix;
-    }
-
-    twoDintoOneD(xIndex, yIndex) {
-        return yIndex * this.xCellsNumber + xIndex;
-    }
-
-    oneDintoTwoD(index) {
-        return {
-            xIndex:  this.xCellsNumber - index, // проблема тут
-            yIndex: this.cellsNumber(this.xCellsNumber, index),
-        }
     }
 
     findCellPosition(xCord, yCord) {
@@ -122,50 +110,61 @@ class Matrix extends Canvas {
         ]
     }
 
-    #findNeighbors(val, xIndex, yIndex, method) {
+    #findNeighbors(xIndex, yIndex, method) {
         let neighbors = 0;
         const count = method(xIndex, yIndex);
-            
+
         for (let i = 0; i < count.length - 1; i += 2) {
             const x = count[i];
             const y = count[i + 1];
-                
-            if (x < 0 || y < 0) {
-                continue
-            } else if (this.matrix[x][y] === `black`) {
-                neighbors ++;
-            }
+            
+            if (
+                x >= 0 && x < this.xCellsNumber &&   
+                y >= 0 && y < this.yCellsNumber &&
+                this.matrix[x][y] === `black`
+            ) neighbors ++;
         }
 
         return neighbors;
     }
 
-    step(live = [], born, method) {
-        this.iterate( (val, i ,j) => {
-            const neighborsCount = this.#findNeighbors(val, i, j, method);
+    step(live = [], born = [], method) {
+        const newMatrix = new Matrix(this.width, this.height,`white`,this.cellSize);
+        newMatrix.iterate((val, index, jndex) => {
+            newMatrix.matrix[index][jndex] = this.matrix[index][jndex];
+        })
 
+        this.iterate( (val, i ,j) => {
+            const neighborsCount = this.#findNeighbors(i, j, method);
             if (
                 val === `black` &&
                 (neighborsCount > live[1] ||
-                neighborsCount < live[0])
+                 neighborsCount < live[0])
             ) {
-                this.matrix[i] = `white`;
+                newMatrix.matrix[i][j] = `white`;
             }
-            if (val === `white` && neighborsCount === born) {
-                this.matrix[i] = `black`;
+            if (
+                val === `white` && 
+                neighborsCount >= born[0] &&
+                neighborsCount <= born[1]
+            ) {
+                newMatrix.matrix[i][j] = `black`;
             }
             
             return
         })
+        this.matrix = newMatrix.matrix;
+        return this.matrix;
     }
 }
 
 const canvas = document.getElementById(`screen`);
 const wrapper = document.getElementById(`screen-wrapper`);
+const startStop = document.getElementById(`start`);
 const initWidth = wrapper.clientWidth
 const initHeight = wrapper.clientHeight;
 const ctx = canvas.getContext(`2d`);
-const CAGE_SIZE = 64;
+const CAGE_SIZE = 16;
 const BORDE_WIDTH = 1;
 const matrix = new Matrix(initWidth, initHeight, `white`, CAGE_SIZE);
 
@@ -227,3 +226,13 @@ const stopDraw = (event) => {
 
 canvas.addEventListener('mousedown', startDraw);
 canvas.addEventListener('mouseup', stopDraw);
+
+startStop.addEventListener(`click`, event => {
+    setInterval(()=>{
+        console.time(`1`);
+        matrix.step([1, 3], [1, 8], matrix.mooreNeighborhood);
+        matrix.iterate(drawlogic(ctx, matrix));
+        console.timeEnd(`1`)
+    },500)
+       
+})
