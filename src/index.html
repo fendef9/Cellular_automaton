@@ -2,43 +2,81 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="./index.css">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="./index.css">
+  <title>Document</title>
 </head>
 
 <body>
-    <h1 class="header">cellular automaton</h1>
-    <div id="screen-wrapper" class="screen-wrapper">
-        <canvas id="screen" class="screen"></canvas>
-    </div>
-    <div class="inputs">
-        <label for="speed">
-            SPEED
-            <input type="range" id="speed" min="0" max="100" step="1">
-        </label>
+  <div class="header">
+    <span id="fps">FPS: press "start" for counting</span>
+  </div>
+  <div id="screen-wrapper" class="screen-wrapper">
+    <canvas id="screen" class="screen"></canvas>
+  </div>
+  <div class="inputs">
+    <label for="speed">
+      SPEED
+      <input type="range" id="speed" min="0" max="100" step="1">
+    </label>
 
-        <label for="scale">
-            SCALE
-            <input type="range" id="scale" min="0" max="100" step="1">
-        </label>
+    <label for="scale">
+      SCALE
+      <input type="range" id="scale" min="0" max="100" step="1">
+    </label>
 
-        <label for="live">
-            LIVE
-            <input type="range" id="live" min="0" max="8" step="1">
-        </label>
+    <label for="live">
+      LIVE
+      <input type="range" id="live" min="0" max="8" step="1">
+    </label>
 
-        <label for="born">
-            BORN
-            <input type="range" id="born" min="0" max="8" step="1">
-        </label>
+    <label for="born">
+      BORN
+      <input type="range" id="born" min="0" max="8" step="1">
+    </label>
 
-        <button id="start" class="start">START</button>
-    </div>
+    <button id="start" class="start">START</button>
+  </div>
 
-    <script type="module" src="./index.js"></script>
+  <script id="vertex-shader-2d" type="x-shader/x-vertex">
+    //attribute vec3 a_color;	
+    attribute vec2 a_position;
+    
+    uniform vec2 u_resolution;
+    uniform float u_size;
+         
+    //varying vec3 fragColor;
+    
+    //fragColor = a_color;
+
+    void main() {
+      // convert the rectangle points from pixels to 0.0 to 1.0
+      vec2 zeroToOne = a_position / u_resolution;
+            
+      // convert from 0->1 to 0->2
+      vec2 zeroToTwo = zeroToOne * 2.0;
+                
+      // convert from 0->2 to -1->+1 (clipspace)
+      vec2 clipSpace = zeroToTwo - 1.0;
+                
+      gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+      gl_PointSize = u_size;
+    }
+  </script>
+  
+  <script id="fragment-shader-2d" type="x-shader/x-fragment">
+    precision mediump float;
+    
+    varying vec3 fragColor;
+  
+    void main() {
+      gl_FragColor = vec4(0.75, 0.8, 0.85, 1.0);
+    }
+  </script>
+
+  <script type="module" src="./index.js"></script>
 </body>
 
 </html>

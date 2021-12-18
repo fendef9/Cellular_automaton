@@ -1,304 +1,382 @@
-'use strict'
-class Cell {
-    constructor(isDead = true) {
-        this.isDead = isDead;
-    }
+// 'use strict'
+// var stats = new Stats();
+// stats.showPanel( 1 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+// document.body.appendChild( stats.dom );
 
-    clone(){
-      return new Cell(this.isDead);
-    }
+class Colors {
+  constructor() {
+    this.deadColor = `rgb(255, 255, 255)`
+    this.aliveColor = `rgb(0, 0, 0)`
+    this.borderColor = `rgb( 100, 100, 100)`
+  }
 
-    kill() {
-        if (!this.isDead) this.isDead = true;
-    }
-
-    resurrect() {
-        if (this.isDead) this.isDead = false;
-    }
-}
-
-class Colors  {
-    constructor(){
-        this.deadColor = `rgb(255, 255, 255)`
-        this.aliveColor = `rgb(0, 0, 0)`
-        this.borderColor = `rgb( 100, 100, 100)`
-    }
-
-    setColor = (isDead) => {
-        return isDead ? this.deadColor : this.aliveColor;
-    }
+  setColor = (isDead) => {
+    return isDead ? this.aliveColor : this.deadColor ;
+  }
 }
 
 class AnimationFrame {
-    constructor(fps = 60, animate) {
-      this.requestID = 0;
-      this.fps = fps;
-      this.animate = animate;
-    }
-
-    stop() {
-        cancelAnimationFrame(this.requestID);
-      }
-  
-    start() {
-      let then = performance.now();
-      const interval = 1000 / this.fps;
-      const tolerance = 0.1;
-  
-      const animateLoop = (now) => {
-        this.requestID = requestAnimationFrame(animateLoop);
-        const delta = now - then;
-  
-        if (delta >= interval - tolerance) {
-          then = now - (delta % interval);
-          this.animate(delta);
-        }
-      };
-      this.requestID = requestAnimationFrame(animateLoop);
-    }
+  constructor(fps = 60, animate) {
+    this.requestID = 0;
+    this.fps = fps;
+    this.animate = animate;
   }
 
+  stop() {
+    cancelAnimationFrame(this.requestID);
+  }
+
+  start() {
+    let then = performance.now();
+    const interval = 1000 / this.fps;
+    const tolerance = 0.1;
+
+    const animateLoop = (now) => {
+      this.requestID = requestAnimationFrame(animateLoop);
+      const delta = now - then;
+
+      if (delta >= interval - tolerance) {
+        then = now - (delta % interval);
+        // stats.begin();
+
+        this.animate(delta);
+
+        // stats.end();
+      }
+    };
+    this.requestID = requestAnimationFrame(animateLoop);
+  }
+}
+
 class Canvas {
-    constructor(width, height, cellSize) {
-        this.xCellsNumber = this.cellsNumber(width, cellSize);
-        this.yCellsNumber = this.cellsNumber(height, cellSize);
-        this.width = this.newCanvaSize(this.xCellsNumber, cellSize);
-        this.height = this.newCanvaSize(this.yCellsNumber, cellSize);
-        this.cellSize = cellSize;
-    }
+  constructor(width, height, cellSize) {
+    this.xCellsNumber = this.cellsNumber(width, cellSize);
+    this.yCellsNumber = this.cellsNumber(height, cellSize);
+    this.width = this.newCanvaSize(this.xCellsNumber, cellSize);
+    this.height = this.newCanvaSize(this.yCellsNumber, cellSize);
+    this.cellSize = cellSize;
+  }
 
-    cellsNumber (dimension, cellSize) {
-        return Math.floor(dimension / cellSize);
-    }
+  cellsNumber(dimension, cellSize) {
+    return Math.floor(dimension / cellSize);
+  }
 
-    newCanvaSize(cellsNumber, cellSize) {
-        return cellsNumber * cellSize;
-    }
+  newCanvaSize(cellsNumber, cellSize) {
+    return cellsNumber * cellSize;
+  }
 }
 
 class Matrix extends Canvas {
-    constructor(width, height, initialValue, cellSize) {
-        super(width, height, cellSize);
-        this.matrix = this.#init(initialValue);
-        this.live = [1, 3];
-        this.born = [1, 8];
-    }
-    
-    #init(initialValue) {
-        const row = [];
+  constructor(width, height, cellSize, initialValue = 0) {
+    super(width, height, cellSize);
+    this.live = [1, 3];
+    this.born = [1, 8];
+    this.length = this.xCellsNumber * this.yCellsNumber;
+    this.matrix = new Array(this.length).fill(initialValue);
+  }
 
-        for (let i = 0; i < this.xCellsNumber; i++) {
-            const column = [];
+  findCellPosition(xCord, yCord) {
+    const xIndex = this.cellsNumber(xCord, this.cellSize);
+    const yIndex = this.cellsNumber(yCord, this.cellSize);
+    const index = yIndex * this.xCellsNumber + xIndex
 
-            for (let j = 0; j < this.yCellsNumber; j++) {
-                column[j] = initialValue(i, j);
-            }
+    return index;
+  }
 
-            row[i] = column;
-        }
+  findCellCordinats(index) {
+    const yIndex = this.cellsNumber(index, this.xCellsNumber);
+    const xIndex = index - yIndex * this.xCellsNumber;
+    const xCord = xIndex * this.cellSize;
+    const yCord = yIndex * this.cellSize;
 
-        return row
-    }
+    return { xCord, yCord };
+  }
 
-    static iterate(arr, callback = function(value, index, jndex) {}) {
-        for (let i = 0; i < arr.length; i++) {
-            for (let j = 0; j < arr[0].length; j++) {
-                callback(arr[i][j], i, j)
-            }
-        }
+  findNeighbors(index, method) {
+    let neighbors = 0;
+    const count = method(index);
 
-        return this;
-    }
+    count.forEach((value) => {
+      if (
+        index >= 0 && index < this.length &&
+        this.matrix[index]
+      ) neighbors++;
+    })
 
-    findCellPosition(xCord, yCord) {
-        const xIndex = this.cellsNumber(xCord, this.cellSize);
-        const yIndex = this.cellsNumber(yCord, this.cellSize);
-    
-        return{
-            xIndex,
-            yIndex
-        }
-    }
+    return neighbors;
+  }
 
-    findCellCordinats(xIndex, yIndex) {
-        const xCord = xIndex * this.cellSize;
-        const yCord = yIndex * this.cellSize;
-    
-        return {xCord, yCord};
-    }
+  step(method, newMatrix) {
+    this.matrix.forEach((val, i) => {
+      const neighborsCount = this.findNeighbors(i, method);
 
-    #findNeighbors(xIndex, yIndex, method) {
-        let neighbors = 0;
-        const count = method(xIndex, yIndex);
-
-        for (let i = 0; i < count.length - 1; i += 2) {
-            const x = count[i];
-            const y = count[i + 1];
-            
-            if (
-                x >= 0 && x < this.xCellsNumber &&   
-                y >= 0 && y < this.yCellsNumber &&
-                !this.matrix[x][y].isDead
-            ) neighbors ++;
-        }
-
-        return neighbors;
-    }
-
-    clone() {
-      const matrixCopy = this.#init((i, j) => {
-          return this.matrix[i][j].clone();
-      })
-
-      return matrixCopy;
-    }
-
-    step(method, newMatrix) {
-        Matrix.iterate(this.matrix, (val, i ,j) => {
-            const neighborsCount = this.#findNeighbors(i, j, method);
-
-            if (val.isDead !== newMatrix[i][j].isDead) {
-              newMatrix.matrix[i][j].isDead = val.isDead;
-            }
-
-            if (
-                !val.isDead  &&
-                (neighborsCount > this.live[1] ||
-                 neighborsCount < this.live[0])
-            ) {
-                newMatrix[i][j].kill();
-            }
-            if (
-                val.isDead && 
-                neighborsCount >= this.born[0] &&
-                neighborsCount <= this.born[1]
-            ) {
-                newMatrix[i][j].resurrect();
-            }
-            
-            return
-        })
-        
-        return this
-    }
+      if (val === newMatrix[i]) return
+      else {
+        if (
+          !val &&
+          (neighborsCount > this.live[1] ||
+            neighborsCount < this.live[0])
+        ) newMatrix[index] = 0;
+        else if (
+          val &&
+          neighborsCount >= this.born[0] &&
+          neighborsCount <= this.born[1]
+        ) newMatrix[i] = 1;
+      }
+    })
+  }
 }
 
 const canvas = document.getElementById(`screen`);
 const screenWrapper = document.getElementById(`screen-wrapper`);
 const startStop = document.getElementById(`start`);
-const initWidth = screenWrapper.clientWidth
+const fpsCounter = document.getElementById(`fps`); 
+const initWidth = screenWrapper.clientWidth;
 const initHeight = screenWrapper.clientHeight;
-const ctx = canvas.getContext(`2d`);
-const CAGE_SIZE = 8;
-const BORDE_WIDTH = 1;
-const initialCell = () => new Cell();
-const matrix = new Matrix(initWidth, initHeight, initialCell, CAGE_SIZE);
-const colors = new Colors();
+
+const CAGE_SIZE = 128;
+// const BORDE_WIDTH = 1;
+const matrix = new Matrix(initWidth, initHeight, CAGE_SIZE, 0);
+// const colors = new Colors();
 const animationFrame = new AnimationFrame();
 
-let live = [2, 3];
-let born = [3, 3];
-const mooreNeighborhood = (xIndex = 0 , yIndex = 0) => {
-  // 012
-  // 3C5
-  // 678
-
+const mooreNeighborhood = (index) => {
   return [
-      xIndex - 1, yIndex - 1,   // 0
-      xIndex, yIndex - 1,       // 1
-      xIndex + 1, yIndex - 1,   // 2
-      xIndex - 1, yIndex,       // 3         
-                                // 4
-      xIndex + 1, yIndex,       // 5
-      xIndex - 1, yIndex + 1,   // 6
-      xIndex, yIndex + 1,       // 7
-      xIndex + 1, yIndex + 1,   // 8
+    index - 4,
+    index - 3,
+    index - 2,
+    index - 1,
+    index + 1,
+    index + 2,
+    index + 3,
+    index + 4
   ]
 }
 
 canvas.addEventListener('contextmenu', (event) => event.preventDefault());
 
-ctx.canvas.height = matrix.height;
-ctx.canvas.width = matrix.width;
-ctx.imageSmoothingEnabled = false;
-ctx.lineWidth = BORDE_WIDTH;
-ctx.strokeStyle = colors.borderColor;
-ctx.fillStyle = colors.deadColor;
+// const draw = (event) => {
+//   let isDead;
+//   const { xIndex: x, yIndex: y } = matrix.findCellPosition(event.offsetX, event.offsetY);
+//   const cell = matrix.matrix[x][y];
 
-const drawlogic = (isInit, newMatrix) => { 
-  return (value, i, j) => {
-    const {xCord: x, yCord: y} = matrix.findCellCordinats(i, j);
-    const oldMatrixValue = matrix.matrix[i][j];
-    
-    if (!isInit && oldMatrixValue.isDead === value.isDead) return
+//   switch (event.which) {
+//     case 1:
+//       isDead = false
+//       break;
+//     case 3:
+//       isDead = true;
+//       break;
+//     default:
+//       return
+//   }
 
-    ctx.fillStyle = colors.setColor(value.isDead);
-    ctx.strokeRect(x, y, matrix.cellSize, matrix.cellSize);
-    ctx.fillRect(
-        x + BORDE_WIDTH, 
-        y + BORDE_WIDTH, 
-        matrix.cellSize - BORDE_WIDTH * 2, 
-        matrix.cellSize - BORDE_WIDTH * 2
-    );
+//   if (cell.isDead !== isDead) {
+//     matrix.matrix[x][y].isDead = isDead;
+//     drawlogic(true)(matrix.matrix[x][y], x, y);
+//   }
+// }
+
+// const startDraw = (event) => {
+//   draw(event);
+//   canvas.addEventListener(`mousemove`, draw);
+// }
+
+// const stopDraw = () => {
+//   canvas.removeEventListener(`mousemove`, draw);
+// }
+
+// canvas.addEventListener('mousedown', startDraw);
+// canvas.addEventListener('mouseup', stopDraw);
+
+// const animate = () => {
+//   console.time(`1`);
+//   const newMatrix = matrix.clone();
+//   matrix.step(mooreNeighborhood, newMatrix);
+//   Matrix.iterate(newMatrix);
+//   matrix.matrix = newMatrix;
+//   console.timeEnd(`1`)
+// }
+
+// const start = () => {
+//   let isPaused = false;
+
+//   animationFrame.animate = (dt) => {
+//     fpsCounter.innerText = `FPS: ${Math.floor(1000 / dt)}`
+
+//   };
+
+//   return () => {
+//     isPaused = !isPaused;
+
+//     if (isPaused) animationFrame.start();
+//     else animationFrame.stop();
+//   }
+// }
+
+// startStop.addEventListener(`click`, start());
+
+const setViewport = (gl, canvas) => {
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+const initWebGL = (canvas) => {
+  let gl = null;
+
+  try {
+    // Попытаться получить стандартный контекст. Если не получится, попробовать получить экспериментальный.
+    gl = canvas.getContext(`webgl2`, {alpha: false, depth: false, antialising: false});
+  }
+  catch (e) { }
+
+  // Если мы не получили контекст GL, завершить работу
+  if (!gl) {
+    alert("Unable to initialize WebGL. Your browser may not support it.");
+    gl = null;
+  }
+
+  return gl;
+}
+
+const start = (canvas) => {
+  let gl = initWebGL(canvas);      // инициализация контекста GL
+
+  // продолжать только если WebGL доступен и работает
+
+  if (gl) {
+    setViewport(gl, canvas);
+    gl.clearColor(0, 0, 0, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+  }
+
+  return gl;
+}
+
+const getShader = (gl, id) => {
+  const shaderScript = document.getElementById(id);
+
+  if (!shaderScript) {
+    return null;
+  }
+
+  let theSource = "";
+  let currentChild = shaderScript.firstChild;
+
+  while(currentChild) {
+    if (currentChild.nodeType == currentChild.TEXT_NODE) {
+      theSource += currentChild.textContent;
+    }
+
+    currentChild = currentChild.nextSibling;
+  }
+
+  return theSource;
+}
+
+const compileProgram = ({ vertexShader, fragmentShader }) => {
+  // Compile vertex shader
+  const vs = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(vs, vertexShader);
+  gl.compileShader(vs);
+
+  if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+		console.error('ERROR compiling vertex shader!', gl.getShaderInfoLog(vs));
+		return;
+	}
+
+  // Compile fragment shader
+  const fs = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(fs, fragmentShader);
+  gl.compileShader(fs);
+
+  if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+		console.error('ERROR compiling fragment shader!', gl.getShaderInfoLog(fs));
+		return;
+	}
+
+  // Create and launch the WebGL program
+  const program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+		console.error('ERROR linking program!', gl.getProgramInfoLog(program));
+		return;
+	}
+	gl.validateProgram(program);
+
+	if (!gl.getProgramParameter(program, gl.VALIDATE_STATUS)) {
+		console.error('ERROR validating program!', gl.getProgramInfoLog(program));
+		return;
+	}
+
+  return program;
+};
+
+canvas.height = matrix.height;
+canvas.width = matrix.width;
+
+const gl = start(canvas);
+const program = compileProgram({
+  vertexShader: getShader(gl, `vertex-shader-2d`),
+  fragmentShader: getShader(gl, `fragment-shader-2d`)
+})
+
+gl.useProgram(program);
+
+const a_position = gl.getAttribLocation(program, "a_position");
+const a_color = gl.getAttribLocation(program, "a_color");
+const u_resolution = gl.getUniformLocation(program, "u_resolution");
+const u_size = gl.getUniformLocation(program, "u_size");
+
+// Create a buffer to put positions in
+const positionBuffer = gl.createBuffer();
+
+// Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = positionBuffer)
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+
+
+const strt = () => {
+  let isPaused = false;
+
+  animationFrame.animate = (dt) => {
+    fpsCounter.innerText = `FPS: ${Math.floor(1000 / dt)}`
+
+    let arr =[]
+  
+for (let i = 8; i <= matrix.width; i += 16) {
+  for(let j = 8; j<=matrix.height; j += 16) {
+    arr.push(i);
+    arr.push(j);
   }
 }
 
-const draw = (event) => {
-    let isDead;
-    const {xIndex: x, yIndex: y} = matrix.findCellPosition(event.offsetX, event.offsetY);
-    const cell = matrix.matrix[x][y];
-    
-    switch(event.which) {
-        case 1:
-            isDead = false
-            break;
-        case 3:
-            isDead = true;
-            break;
-        default:
-           return  
-    }   
+const points = new Float32Array(arr)
 
-    if(cell.isDead !== isDead) {
-        matrix.matrix[x][y].isDead = isDead;
-        drawlogic(true)(matrix.matrix[x][y], x, y);
-    }
+
+
+gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW)
+
+gl.uniform1f(u_size, 14);
+gl.uniform2f(u_resolution, canvas.width, canvas.height)
+gl.vertexAttribPointer(a_position, 2, gl.FLOAT, gl.FALSE, 2 * Float32Array.BYTES_PER_ELEMENT, 0);
+
+gl.enableVertexAttribArray(a_position);
+// gl.enableVertexAttribArray(u_resolution);
+// gl.enableVertexAttribArray(u_size);
+
+gl.drawArrays(gl.POINTS, 0, arr.length);
+
+  };
+  return () => {
+    isPaused = !isPaused;
+
+    if (isPaused) animationFrame.start();
+    else animationFrame.stop();
+  }
 }
 
-const startDraw = (event) => {
-    draw(event);
-    canvas.addEventListener(`mousemove`, draw);      
-}
-
-const stopDraw = () => {
-    canvas.removeEventListener(`mousemove`, draw); 
-}
-
-canvas.addEventListener('mousedown', startDraw);
-canvas.addEventListener('mouseup', stopDraw);
-
-const animate = () => {
-  console.time(`1`);
-  const newMatrix = matrix.clone();
-  matrix.step(mooreNeighborhood, newMatrix);
-  Matrix.iterate(newMatrix, drawlogic(false));
-  matrix.matrix = newMatrix;
-  console.timeEnd(`1`)
-}
-
-const start = () => {
-    let isPaused = false;
-
-    animationFrame.animate = animate;
-
-    return () => {
-        isPaused = !isPaused;
-
-        if (isPaused) animationFrame.start();
-        else animationFrame.stop();
-    }
-}
-
-startStop.addEventListener(`click`, start());
-
-Matrix.iterate(matrix.matrix, drawlogic(true));
+startStop.addEventListener(`click`, strt());
